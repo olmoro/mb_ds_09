@@ -1,0 +1,59 @@
+
+This directory is intended for project specific (private) libraries.
+PlatformIO will compile them to static libraries and link into the executable file.
+
+The source code of each library should be placed in a separate directory
+("lib/your_library_name/[Code]").
+
+For example, see the structure of the following example libraries `Foo` and `Bar`:
+
+|--lib
+|  |
+|  |--Bar
+|  |  |--docs
+|  |  |--examples
+|  |  |--src
+|  |     |- Bar.c
+|  |     |- Bar.h
+|  |  |- library.json (optional. for custom build options, etc) https://docs.platformio.org/page/librarymanager/config.html
+|  |
+|  |--Foo
+|  |  |- Foo.c
+|  |  |- Foo.h
+|  |
+|  |- README --> THIS FILE
+|
+|- platformio.ini
+|--src
+   |- main.c
+
+Example contents of `src/main.c` using Foo and Bar:
+```
+#include <Foo.h>
+#include <Bar.h>
+
+int main (void)
+{
+  ...
+}
+
+```
+
+The PlatformIO Library Dependency Finder will find automatically dependent
+libraries by scanning project source files.
+
+More information about PlatformIO Library Dependency Finder
+- https://docs.platformio.org/page/librarymanager/ldf.html
+
+Тест(hex) Запись по команде 10 адрес 02 регистров 2 : 0001 и 011F
+I (43120) PROCESSOR: Received PDU (11 bytes):
+   01 10 00    02 00    02 04 00    01    01    1F
+I (43120) STAFF: Staffing (17 bytes):
+10 01 10 00 10 02 00 10 02 04 00 10 01 10 01 10 1F
+I (43120) TAG: staffProcess data length: 17
+I (43120) PROCESSOR: Response for send to SP (19 bytes):
+10 01 10 00 10 02 00 10 02 04 00 10 01 10 01 10 1F 30 F9  : OK
+I (43130) MODBUS_SLAVE: Received PDU (11 bytes):
+01 10 00 02 00 02 04 00 01 01 1F
+I (43140) MODBUS_SLAVE: Response (13 bytes):
+01 10 00 02 00 02 04 00 01 01 1F 63 EE
