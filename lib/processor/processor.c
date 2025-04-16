@@ -127,7 +127,7 @@ void frame_processor_task(void *arg)
         // size_t dest_len;
 
 
-        // Прием сообщения от modbus_receive_task
+        // Прием сообщения от modbus_receive_task (реализованы не все проверки)
         if(xQueueReceive(modbus_queue, &pdu, portMAX_DELAY)) 
         {
             // Обработка данных (зарезервировать 2 байта для CRC)
@@ -154,47 +154,42 @@ void frame_processor_task(void *arg)
                 ESP_LOGE("TAG", "Destination buffer overflow!");
             }
 
-            // /* Расчет CRC для пакета, отправляемого целевому прибору */
-            // pdu.length = sizeof(dest_len + 2);
-            // memcpy(pdu.data, dest, dest_len);
-
-            // uint16_t sp_crc = CRCode((pdu.data + 2), pdu.length - 4); // Исключая два первых байта DLE и SOH, и два зарезервированных под CRC. 
-            // pdu.data[pdu.length - 2] = sp_crc & 0xFF;
-            // pdu.data[pdu.length - 1] = sp_crc >> 8;
-
-            // ESP_LOGI(TAG, "PDU for send to SP (%d bytes):", pdu.length);
-            // for(int i = 0; i < pdu.length; i++) 
-            // {
-            //     printf("%02X ", pdu.data[i]);
-            // }
-            // printf("\n");
-
-
-            // Формирование ответа
-            uint8_t response[dest_len + 2];
+            // Формирование ответа для UART2 (SP)
+            uint8_t response[dest_len + 2];     // +2 байта для контрольной суммы
             memcpy(response, dest, dest_len);
 
-            // Расчет CRC для ответа
-            uint16_t response_crc = CRCode(response + 2, dest_len - 4);
-            response[dest_len] = response_crc & 0xFF;
-            response[dest_len + 1] = response_crc >> 8;
+            // Расчет CRC для ответа (функия откорректирована в части типов данных)
+            uint16_t response_crc = CRCode(response + 2, dest_len - 2);
+            response[dest_len + 1] = response_crc & 0xFF;
+            response[dest_len] = response_crc >> 8;
 
-            ESP_LOGI(TAG, "Response for send to SP (%d bytes):", dest_len + 2);
-            for(int i = 0; i < dest_len + 2; i++) 
+            // ESP_LOGI(TAG, "Response for send to SP (%d bytes):", dest_len + 2);
+            // for(int i = 0; i < dest_len + 2; i++) 
+            dest_len += 2;
+            ESP_LOGI(TAG, "Response for send to SP (%d bytes):", dest_len);
+            for(int i = 0; i < dest_len; i++) 
             {
                 printf("%02X ", response[i]);
             }
             printf("\n");
 
             // Отправка ответа //с синхронизацией
-        //    xSemaphoreTake(uart_mutex, portMAX_DELAY);
+            //    xSemaphoreTake(uart_mutex, portMAX_DELAY);
             uart_write_bytes(SP_PORT_NUM, (const char *)response, sizeof(response));
-        //    xSemaphoreGive(uart_mutex);
+            //    xSemaphoreGive(uart_mutex);
+
+
+            // Далее будет приём пакета от целевого прибора
+            uint8_t temp_buf[128];
+            uint8_t mb_err = 0x00; // Ошибок приёма пакета по sp нет
+    
+            int len = uart_read_bytes(SP_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(100));
 
 
 
 
 
+            
 
             // #ifdef TEST_MODBUS
                 // Отправка в очередь

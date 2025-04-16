@@ -107,9 +107,12 @@ void modbus_receive_task(void *arg)
     while (1)
     {
         uint8_t temp_buf[128];
-        uint8_t mb_err = 0x00; // Ошибок приёма пакета по modbus нет
+        uint8_t mb_err = 0x00;  // Ошибок приёма пакета по modbus нет
+        uint8_t addr = 0x00;    // адрес slave
+        uint8_t comm = 0x00;    // команда (функция)
+        uint8_t bytes = 0x00;   // количество байт в содержательной части пакета
 
-        int len = uart_read_bytes(MB_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(10));
+        int len = uart_read_bytes(MB_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(100));
 
         if (len > 0)
         {
@@ -186,7 +189,26 @@ void modbus_receive_task(void *arg)
                 mb_err = 0x04;
             }
 
+            switch (frame_buffer[1])
+            {
+            case 0x10:
+                // сохранить адрес и команду для ответа
+                addr = frame_buffer[0];
+                comm = frame_buffer[1];
+                if(frame_buffer[frame_length] == 0x00)     bytes = frame_buffer[6] - 1 ;
+
+                pdu.length = bytes;                           // содержательная часть пакета в байтах
+                memmove(frame_buffer, frame_buffer + 7, pdu.length);    // сдвиг на 7 байтов
+                break;
+            
+            // case 0x : // другая команда
+
+            default:
+                break;
+            }
+
             memcpy(pdu.data, frame_buffer, pdu.length);
+            pdu.length = bytes;                         // Это из-за терминала (он оперирует 16-битовым типом)
 
             if (mb_err == 0x00)
             {
@@ -205,10 +227,10 @@ void modbus_receive_task(void *arg)
                     переполнена. Формируется ответ c установленным старшим битом в коде команды */
                 uint8_t response[5] =
                     {
-                        pdu.data[0],          // Адрес
-                        pdu.data[1] |= 0x80,  // Функция
-                        pdu.data[2] = mb_err, // Код ошибки
-                        0x00, 0x00            // Место для CRC
+                        addr,                   // Адрес
+                        comm |= 0x80,           // Функция
+                        pdu.data[2] = mb_err,   // Код ошибки
+                        0x00, 0x00              // Место для CRC
                     };
                 uint8_t len = sizeof(response);
 
@@ -252,16 +274,16 @@ void mb_send_task(void *arg)
         // #ifdef TEST_MODBUS
         //     if(xQueueReceive(modbus_queue, &pdu, portMAX_DELAY)) // Test
         // #else
-        if (xQueueReceive(processor_queue, &pdu, portMAX_DELAY))
+        if (xQueueReceive(processor_queue, &pdu, portMAX_DELAY))        // Пока будет так
         // #endif
         {
             // Обработка данных
-            ESP_LOGI(TAG, "Received PDU (%d bytes):", pdu.length);
-            for (int i = 0; i < pdu.length; i++)
-            {
-                printf("%02X ", pdu.data[i]);
-            }
-            printf("\n");
+            // ESP_LOGI(TAG, "Received PDU (%d bytes):", pdu.length);
+            // for (int i = 0; i < pdu.length; i++)
+            // {
+            //     printf("%02X ", pdu.data[i]);
+            // }
+            // printf("\n");
 
             // ledsGreen();
             // ledsOn();
@@ -283,12 +305,12 @@ void mb_send_task(void *arg)
             response[pdu.length] = response_crc & 0xFF;
             response[pdu.length + 1] = response_crc >> 8;
 
-            ESP_LOGI(TAG, "Response (%d bytes):", pdu.length + 2);
-            for (int i = 0; i < pdu.length + 2; i++)
-            {
-                printf("%02X ", response[i]);
-            }
-            printf("\n");
+            // ESP_LOGI(TAG, "Response (%d bytes):", pdu.length + 2);
+            // for (int i = 0; i < pdu.length + 2; i++)
+            // {
+            //     printf("%02X ", response[i]);
+            // }
+            // printf("\n");
 
             // Отправка ответа с синхронизацией
             xSemaphoreTake(uart_mutex, portMAX_DELAY);
