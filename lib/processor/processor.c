@@ -119,7 +119,9 @@ void frame_processor_task(void *arg)
     while(1) 
     {
         pdu_packet_t pdu;
-     //   uint8_t temp_buf[240];
+
+        uint8_t temp_buf[240];
+        uint8_t sp_err = 0x00;  // Ошибок приёма пакета по sp нет
 
         // uint8_t src[] = {0x00, 0x01, 0x02, 0x01};
         // size_t src_len = sizeof(src);
@@ -180,16 +182,65 @@ void frame_processor_task(void *arg)
 
 
             // Далее будет приём пакета от целевого прибора
-            uint8_t temp_buf[128];
+        //    uint8_t temp_buf[128];
             uint8_t mb_err = 0x00; // Ошибок приёма пакета по sp нет
     
             int len = uart_read_bytes(SP_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(100));
 
+            // Проверка CRC
+            uint16_t received_crc = (temp_buf[len - 2] << 8) | temp_buf[len - 1];
+            uint16_t calculated_crc = CRCode(temp_buf + 4, len - 6);              // Исключая FF FF 10 01 в начале и два байта CRC
+            if (received_crc != calculated_crc)
+            {
+                ESP_LOGE(TAG, "len: %02X CRC error: %04X vs %04X", len, received_crc, calculated_crc);
+
+                sp_err = 0x04;
+            }
+            else
+            {
+                ESP_LOGI(TAG, "CRC OK: %04X vs %04X", received_crc, calculated_crc);
+            }
+
+
+            // uint8_t dest[BUF_SIZE];
+            // size_t dest_len;
+
+            //if(deStaffProcess(src, dest, pdu.length, sizeof(dest), &dest_len)) 
+            esp_err_t ret = deStaffProcess(temp_buf + 4, dest, len - 6, sizeof(dest), &dest_len);
+            if (ret == ESP_OK) 
+            {
+                ESP_LOGI("TAG", "deStaff Processed %d bytes", dest_len);
+            } 
+            else 
+            {
+                ESP_LOGE("TAG", "deStaff Error: %s", esp_err_to_name(ret));
+            }
+
+
+            // dest
+            // dest_len
+
+            for(int i = 0; i < dest_len; i++) 
+            {
+                printf("%02X ", dest[i]);
+            }
+            printf("\n");
 
 
 
 
-            
+
+
+            // memcpy(pdu.data, temp_buf+2, len-2)
+            // pdu->l .lenght = len-2;
+
+            // // Подготовка PDU пакета
+            // pdu_packet_t pdu =
+            //     {
+            //         .length = len - 2, // Исключаем FF FF
+            //         .data = malloc(temp_buf + 2)
+            //     };
+
 
             // #ifdef TEST_MODBUS
                 // Отправка в очередь
@@ -202,7 +253,7 @@ void frame_processor_task(void *arg)
                 {
             //     //     // if(xQueueSend(queues->modbus_queue, &pdu, 0) != pdTRUE) {     //if(xQueueSend(queues->modbus_queue, &pdu, pdMS_TO_TICKS(100)) != pdPASS) {
                     ESP_LOGE(TAG, "Queue full! Dropping PDU");
-                 //   free(pdu.data);
+                    //free(pdu.data);
                     continue;
                  }
             // #endif

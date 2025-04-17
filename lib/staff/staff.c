@@ -1,15 +1,20 @@
 /*
-
-
-*/
+ - заголовок    | SOH | DAD | SAD | ISI | FNC | DataHead |
+ или безадресный заголовок  | SOH | ISI | FNC | DataHead |
+ - данные                                                | STX | DataSet | ETX |
+ - контрольная информация                                                      | CRC1 | CRC2 |
+ */
 
 #include "staff.h"
+#include "project_config.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "esp_system.h"
 #include "esp_err.h"
 #include "esp_log.h"
+
 
 /* Для структурирования сообщений используются управляющие символы */
 #define DLE 0x10 // символ-префикс
@@ -25,17 +30,10 @@ FNC  байт кода функции,
 CRC1, CRC2  циклические контрольные коды
 */
 
-/*
- - заголовок    | SOH | DAD | SAD | ISI | FNC | DataHead |
- или безадресный заголовок  | SOH | ISI | FNC | DataHead |
- - данные                                                | STX | DataSet | ETX |
- - контрольная информация                                                      | CRC1 | CRC2 |
- */
+
 
 static const char *TAG = "STAFF";
 
-/*
- */
 bool staffProcess(const uint8_t *src, uint8_t *dest, size_t src_len, size_t dest_max_len, size_t *dest_actual_len)
 {
     size_t j = 0;
@@ -87,11 +85,70 @@ bool staffProcess(const uint8_t *src, uint8_t *dest, size_t src_len, size_t dest
     return true;
 }
 
-// bool deStaffProcess(const uint8_t *src, uint8_t *dest, size_t src_len, size_t dest_max_len, size_t *dest_actual_len)
-// {
+esp_err_t deStaffProcess(const uint8_t *src, uint8_t *dest, size_t src_size, size_t dest_size, size_t *dest_len) 
+{
+    // Проверка входных параметров
+    // if (src == NULL || dest == NULL || dest_len == NULL) 
+    // {
+    //     return ESP_ERR_INVALID_ARG;
+    // }
+    // if (src_size != BUF_SIZE || dest_size != BUF_SIZE) 
+    // {
+    //     return ESP_ERR_INVALID_SIZE;
+    // }
 
-//     return true;
-// }
+    size_t i = 0;
+    size_t j = 0;
+
+    while (i < src_size) 
+    {
+        // Проверяем текущий байт на  DLE и наличие следующего байта
+        if (src[i] == DLE && (i + 1) < src_size) 
+        {
+            uint8_t next_byte = src[i + 1];
+            
+            // Проверяем следующий байт на совпадение с целевыми значениями
+            if (next_byte == SOH || next_byte == STX || next_byte == ETX || next_byte == ISI) 
+            {
+                // // Пропускаем  DLE, копируем следующий байт
+                // if (j >= dest_size) 
+                // {
+                //     *dest_len = j;
+                //     return ESP_ERR_INVALID_SIZE;
+                // }
+                dest[j++] = next_byte;
+                i += 2;
+            } 
+            else 
+            {
+                // Сохраняем текущий байт DLE
+                if (j >= dest_size) 
+                {
+                    *dest_len = j;
+                    return ESP_ERR_INVALID_SIZE;
+                }
+                dest[j++] = src[i++];
+            }
+        } 
+        else 
+        {
+            // Копируем текущий байт
+            if (j >= dest_size) 
+            {
+                *dest_len = j;
+                return ESP_ERR_INVALID_SIZE;
+            }
+            dest[j++] = src[i++];
+        }
+    }
+
+    *dest_len = j;
+    return ESP_OK;
+}
+
+
+
+
 
 /* Пример использования
 void app()
@@ -113,3 +170,91 @@ void app()
     }
 }
 */
+
+// ================================== deStuff ==================================
+
+// #include <stdint.h>
+// #include "esp_err.h"
+
+// esp_err_t deStaffProcess(const uint8_t *src, uint8_t *dest, size_t src_size, size_t dest_size, size_t *dest_len) 
+// {
+//     // Проверка входных параметров
+//     if (src == NULL || dest == NULL || dest_len == NULL) 
+//     {
+//         return ESP_ERR_INVALID_ARG;
+//     }
+//     if (src_size != BUF_SIZE || dest_size != BUF_SIZE) 
+//     {
+//         return ESP_ERR_INVALID_SIZE;
+//     }
+
+//     size_t i = 0;
+//     size_t j = 0;
+
+//     while (i < src_size) 
+//     {
+//         // Проверяем текущий байт на  DLE и наличие следующего байта
+//         if (src[i] ==  DLE && (i + 1) < src_size) 
+//         {
+//             uint8_t next_byte = src[i + 1];
+            
+//             // Проверяем следующий байт на совпадение с целевыми значениями
+//             if (next_byte == SOH || next_byte == STX || next_byte == ETX || next_byte == ISI) 
+//             {
+//                 // Пропускаем  DLE, копируем следующий байт
+//                 if (j >= dest_size) 
+//                 {
+//                     *dest_len = j;
+//                     return ESP_ERR_INVALID_SIZE;
+//                 }
+//                 dest[j++] = next_byte;
+//                 i += 2;
+//             } 
+//             else 
+//             {
+//                 // Сохраняем текущий байт  DLE
+//                 if (j >= dest_size) 
+//                 {
+//                     *dest_len = j;
+//                     return ESP_ERR_INVALID_SIZE;
+//                 }
+//                 dest[j++] = src[i++];
+//             }
+//         } 
+//         else 
+//         {
+//             // Копируем текущий байт
+//             if (j >= dest_size) 
+//             {
+//                 *dest_len = j;
+//                 return ESP_ERR_INVALID_SIZE;
+//             }
+//             dest[j++] = src[i++];
+//         }
+//     }
+
+//     *dest_len = j;
+//     return ESP_OK;
+// }
+
+
+
+
+
+// // Пример использования:
+
+// void app() 
+// {
+//     uint8_t input[BUF_SIZE] = {/* данные */};
+//     uint8_t output[BUF_SIZE];
+//     size_t output_len;
+    
+//     esp_err_t ret = deStaffProcess(input, output, sizeof(input), sizeof(output), &output_len);
+    
+//     if (ret == ESP_OK) {
+//         ESP_LOGI("TAG", "deStaff Processed %d bytes", output_len);
+//     } else {
+//         ESP_LOGE("TAG", "deStaff Error: %s", esp_err_to_name(ret));
+//     }
+// }
+

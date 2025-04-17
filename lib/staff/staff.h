@@ -8,6 +8,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "esp_err.h"
+
 
 /* Параметры функции:
 .
@@ -32,7 +34,8 @@ extern "C"
  *        false: недостаточно места в целевом буфере.
  */
 bool staffProcess(const uint8_t *src, uint8_t *dest, size_t src_len, size_t dest_max_len, size_t *dest_actual_len);
-// bool deStaffProcess(const uint8_t *src, uint8_t *dest, size_t src_len, size_t dest_max_len, size_t *dest_actual_len);
+//bool deStaffProcess(const uint8_t *src, uint8_t *dest, size_t src_len, size_t dest_max_len, size_t *dest_actual_len);
+esp_err_t deStaffProcess(const uint8_t *src, uint8_t *dest, size_t src_size, size_t dest_size, size_t *dest_len); 
 
 #ifdef __cplusplus
 }

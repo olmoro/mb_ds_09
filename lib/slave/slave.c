@@ -119,7 +119,7 @@ void modbus_receive_task(void *arg)
             // Начало нового фрейма
             if (frame_buffer == NULL)
             {
-                frame_buffer = malloc(MAX_PDU_LENGTH + 3);
+                frame_buffer = malloc(MAX_PDU_LENGTH + 3);  // + лишнее
                 frame_length = 0;
             }
 
