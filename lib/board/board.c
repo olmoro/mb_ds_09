@@ -18,10 +18,12 @@
 
 static const char *TAG = "BOARD";
 
-gpio_num_t _rgb_red_gpio = static_cast<gpio_num_t>(RGB_RED_GPIO);
-gpio_num_t _rgb_green_gpio = static_cast<gpio_num_t>(RGB_GREEN_GPIO);
-gpio_num_t _rgb_blue_gpio = static_cast<gpio_num_t>(RGB_BLUE_GPIO);
-
+// gpio_num_t _rgb_red_gpio = static_cast<gpio_num_t>(RGB_RED_GPIO);
+// gpio_num_t _rgb_green_gpio = static_cast<gpio_num_t>(RGB_GREEN_GPIO);
+// gpio_num_t _rgb_blue_gpio = static_cast<gpio_num_t>(RGB_BLUE_GPIO);
+gpio_num_t _rgb_red_gpio = RGB_RED_GPIO;
+gpio_num_t _rgb_green_gpio = RGB_GREEN_GPIO;
+gpio_num_t _rgb_blue_gpio = RGB_BLUE_GPIO;
 void boardInit()
 {
     /* Инициализация GPIO (push/pull output) */
@@ -170,6 +172,10 @@ uint16_t mb_crc16(const uint8_t *buffer, size_t length)
     return crc;
 }
 
+/* Контрольные коды насчитывается с байта, следующего за SOH, поскольку два первых байта DLE
+    и SOH проверяются явно при выделении начала сообщения. Контрольные коды охватывают все байты,
+    включая ETX и все стаффинг символы в этом промежутке.
+*/
 uint16_t CRCode(const uint8_t *msg, size_t len)
 {
     int j, crc = 0;

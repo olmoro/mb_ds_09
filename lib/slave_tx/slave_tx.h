@@ -1,25 +1,24 @@
 /*=====================================================================================
  * Description:
- *  
- *  
- *  
+ *  FreeModbus Slave ESP32
+ *
+ *
  *====================================================================================*/
-#ifndef _PROCESSOR_H_
-#define _PROCESSOR_H_
-
-
+#ifndef _SLAVE_TX_H_
+#define _SLAVE_TX_H_
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
+  //  void modbus_receive_task(void *arg);
+    void mb_send_task(void *arg);
 
-void frame_processor_task(void *arg);
-
+  //  void processing_task(void *arg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // _PROCESSOR_H_
+#endif // _SLAVE_TX_H_

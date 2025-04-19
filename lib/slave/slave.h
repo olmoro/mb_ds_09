@@ -12,8 +12,6 @@ extern "C"
 {
 #endif
 
- //   void uart_mb_init();
-
     void modbus_receive_task(void *arg);
     void mb_send_task(void *arg);
 

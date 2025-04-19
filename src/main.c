@@ -6,6 +6,7 @@
 #include "project_config.h"
 #include "board.h"
 #include "slave.h"
+#include "slave_tx.h"
 #include "processor.h"
 
 static const char *TAG = "MODBUS_MAIN";

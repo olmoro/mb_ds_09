@@ -33,62 +33,14 @@
 static const char *TAG = "MODBUS_SLAVE";
 
 QueueHandle_t modbus_queue;
-QueueHandle_t processor_queue;
+//QueueHandle_t processor_queue;
 //extern QueueHandle_t processor_queue;
 
 
 static SemaphoreHandle_t uart_mutex = NULL;
 
-static portMUX_TYPE param_lock = portMUX_INITIALIZER_UNLOCKED;
+// static portMUX_TYPE param_lock = portMUX_INITIALIZER_UNLOCKED;
 
-// void uart_mb_init()
-// {
-//     /* Configure parameters of an UART driver, communication pins and install the driver */
-//     uart_config_t uart_mb_config = {
-//         .baud_rate = MB_BAUD_RATE,
-//         .data_bits = UART_DATA_8_BITS,
-//         .parity = UART_PARITY_DISABLE,
-//         .stop_bits = UART_STOP_BITS_1,
-//         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE, // RTS для управления направлением DE/RE !!
-//         .rx_flow_ctrl_thresh = 122,
-//     };
-
-//     //     int intr_alloc_flags = 0;
-
-//     // #if CONFIG_UART_ISR_IN_IRAM
-//     //     intr_alloc_flags = ESP_INTR_FLAG_IRAM;
-//     // #endif
-
-//     ESP_ERROR_CHECK(uart_driver_install(MB_PORT_NUM, BUF_SIZE, BUF_SIZE, MB_QUEUE_SIZE, NULL, 0));
-//     ESP_ERROR_CHECK(uart_set_pin(MB_PORT_NUM, CONFIG_MB_UART_TXD, CONFIG_MB_UART_RXD, CONFIG_MB_UART_RTS, 32)); // IO32 свободен (трюк)
-//     ESP_ERROR_CHECK(uart_set_mode(MB_PORT_NUM, UART_MODE_RS485_HALF_DUPLEX));                                   // activate RS485 half duplex in the driver
-//     ESP_ERROR_CHECK(uart_param_config(MB_PORT_NUM, &uart_mb_config));
-//     ESP_LOGI(TAG, "slave_uart initialized.");
-// }
-
-// static uint16_t mb_crc16(const uint8_t *buffer, size_t length)
-// {
-//     uint16_t crc = 0xFFFF;
-
-//     for (size_t i = 0; i < length; i++)
-//     {
-//         crc ^= (uint16_t)buffer[i];
-
-//         for (uint8_t j = 0; j < 8; j++)
-//         {
-//             if (crc & 0x0001)
-//             {
-//                 crc = (crc >> 1) ^ 0xA001;
-//             }
-//             else
-//             {
-//                 crc >>= 1;
-//             }
-//         }
-//     }
-
-//     return crc;
-// }
 
 uint8_t addr = 0x00;    // адрес slave
 uint8_t comm = 0x00;    // команда (функция)
@@ -273,77 +225,77 @@ void modbus_receive_task(void *arg)
 
 
 
-// Задача отправления ответа
-void mb_send_task(void *arg)
-{
-    //msg_packet_t msg;
-    processor_queue = xQueueCreate(MB_QUEUE_SIZE, sizeof(pdu_packet_t));
+// // Задача отправления ответа
+// void mb_send_task(void *arg)
+// {
+//     //msg_packet_t msg;
+//     processor_queue = xQueueCreate(MB_QUEUE_SIZE, sizeof(pdu_packet_t));
 
-    while (1)
-    {
-        msg_packet_t msg;
-
-
-        // mb_frame_t frame;   // структура
-        // #ifdef TEST_MODBUS
-        //     if(xQueueReceive(modbus_queue, &msg, portMAX_DELAY)) // Test
-        // #else
-        if (xQueueReceive(processor_queue, &msg, portMAX_DELAY))        // Пока будет так
-        // #endif
-        {
-            // Обработка данных
-            ESP_LOGI(TAG, "Received deStuffing msd (%d bytes):", msg.length);
-
-            printf("%08X ", *msg.data);
-            printf("\n");
+//     while (1)
+//     {
+//         msg_packet_t msg;
 
 
-            for (int i = 0; i < msg.length; i++)
-            {
-                printf("%02X ", msg.data[i]);
-            }
-            printf("\n");
+//         // mb_frame_t frame;   // структура
+//         // #ifdef TEST_MODBUS
+//         //     if(xQueueReceive(modbus_queue, &msg, portMAX_DELAY)) // Test
+//         // #else
+//         if (xQueueReceive(processor_queue, &msg, portMAX_DELAY))        // Пока будет так
+//         // #endif
+//         {
+//             // Обработка данных
+//             ESP_LOGI(TAG, "Received deStuffing msd (%d bytes):", msg.length);
 
-            // ledsGreen();
-            // ledsOn();
-
-            // // Проверка минимальной длины фрейма
-            // if(msg.length < 4) {
-            //     ESP_LOGE(TAG, "Invalid msg length: %d", msg.length);
-            //     free(msg.data);
-            //     continue;
-            // }
-
-            // Формирование ответа
-
-            uint8_t response[msg.length + 2];
-            response[0] = addr; //      , msg.data, msg.length);
-            response[1] = comm; //      , msg.data, msg.length);
+//             printf("%08X ", *msg.data);
+//             printf("\n");
 
 
-            memcpy(response + 2, msg.data, msg.length);
+//             for (int i = 0; i < msg.length; i++)
+//             {
+//                 printf("%02X ", msg.data[i]);
+//             }
+//             printf("\n");
 
-            // Расчет CRC для ответа
-            uint16_t response_crc = mb_crc16(response, msg.length);
-            response[msg.length] = response_crc & 0xFF;
-            response[msg.length + 1] = response_crc >> 8;
+//             // ledsGreen();
+//             // ledsOn();
+
+//             // // Проверка минимальной длины фрейма
+//             // if(msg.length < 4) {
+//             //     ESP_LOGE(TAG, "Invalid msg length: %d", msg.length);
+//             //     free(msg.data);
+//             //     continue;
+//             // }
+
+//             // Формирование ответа
+
+//             uint8_t response[msg.length + 2];
+//             response[0] = addr; //      , msg.data, msg.length);
+//             response[1] = comm; //      , msg.data, msg.length);
 
 
-            ESP_LOGI(TAG, "Response msg (%d bytes):", msg.length + 2);
-            for (int i = 0; i < msg.length + 2; i++)
-            {
-                printf("%02X ", response[i]);
-            }
-            printf("\n");
+//             memcpy(response + 2, msg.data, msg.length);
 
-            // Отправка ответа с синхронизацией
-            xSemaphoreTake(uart_mutex, portMAX_DELAY);
-            uart_write_bytes(MB_PORT_NUM, (const char *)response, sizeof(response));
-            xSemaphoreGive(uart_mutex);
+//             // Расчет CRC для ответа
+//             uint16_t response_crc = mb_crc16(response, msg.length);
+//             response[msg.length] = response_crc & 0xFF;
+//             response[msg.length + 1] = response_crc >> 8;
 
-            ledsBlue(); // Ожидание ввода нового пакета
 
-            //free(msg.data);
-        }
-    }
-}
+//             ESP_LOGI(TAG, "Response msg (%d bytes):", msg.length + 2);
+//             for (int i = 0; i < msg.length + 2; i++)
+//             {
+//                 printf("%02X ", response[i]);
+//             }
+//             printf("\n");
+
+//             // Отправка ответа с синхронизацией
+//             xSemaphoreTake(uart_mutex, portMAX_DELAY);
+//             uart_write_bytes(MB_PORT_NUM, (const char *)response, sizeof(response));
+//             xSemaphoreGive(uart_mutex);
+
+//             ledsBlue(); // Ожидание ввода нового пакета
+
+//             //free(msg.data);
+//         }
+//     }
+// }
