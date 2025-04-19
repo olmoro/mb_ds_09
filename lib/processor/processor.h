@@ -14,7 +14,7 @@ extern "C"
 {
 #endif
 
-void uart_sp_init();
+//void uart_sp_init();
 
 void frame_processor_task(void *arg);
 

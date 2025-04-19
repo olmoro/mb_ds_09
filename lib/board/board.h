@@ -22,6 +22,8 @@ extern "C"
 #endif
 
     void boardInit();
+    void uart_mb_init();
+    void uart_sp_init();
 
     void ledsOn();
     void ledsRed();
@@ -32,6 +34,10 @@ extern "C"
     void ledRedToggle();
     void ledGreenToggle();
     void ledBlueToggle();
+
+    uint16_t mb_crc16(const uint8_t *buffer, size_t length);
+    uint16_t CRCode(const uint8_t *msg, size_t len);
+
 
 #ifdef __cplusplus
 }
