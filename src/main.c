@@ -5,9 +5,10 @@
 #include "freertos/task.h"
 #include "project_config.h"
 #include "board.h"
-#include "slave.h"
+#include "slave_rx.h"
 #include "slave_tx.h"
 #include "processor.h"
+#include "processor_tx.h"
 
 static const char *TAG = "MODBUS_MAIN";
 
@@ -22,27 +23,35 @@ void app_main()
     ledsBlue();
 
     // Создание задач
-    BaseType_t modbus_receive_task_handle = xTaskCreate(modbus_receive_task, "mb_receive", 4096, NULL, 5, NULL);
-    if (!modbus_receive_task_handle)
+    BaseType_t slave_rx_task_handle = xTaskCreate(slave_rx_task, "slave_rx", 4096, NULL, 5, NULL);
+    if (!slave_rx_task_handle)
     {
-        ESP_LOGE(TAG, "Failed to create MB Receive task");
+        ESP_LOGE(TAG, "Failed to create Slave RX task");
         return;
     }
-    ESP_LOGI(TAG, "MB Receive task created successfully");
+    ESP_LOGI(TAG, "Slave RX task created successfully");
 
-    BaseType_t modbus_send_task_handle = xTaskCreate(mb_send_task, "mb_send", 4096, NULL, 4, NULL);
-    if (!modbus_send_task_handle)
-    {
-        ESP_LOGE(TAG, "Failed to create MB Send task");
-        return;
-    }
-    ESP_LOGI(TAG, "MB Send task created successfully");
+    // BaseType_t slave_tx_task_handle = xTaskCreate(slave_tx_task, "slave_tx", 4096, NULL, 6, NULL);
+    // if (!slave_tx_task_handle)
+    // {
+    //     ESP_LOGE(TAG, "Failed to create Slave TX task");
+    //     return;
+    // }
+    // ESP_LOGI(TAG, "Slave TX task created successfully");
 
-    BaseType_t processor_task_handle = xTaskCreate(frame_processor_task, "processor", 4096, NULL, 3, NULL);
-    if (!processor_task_handle)
+    BaseType_t processor_rx_task_handle = xTaskCreate(processor_rx_task, "processor_r[]", 4096, NULL, 7, NULL);
+    if (!processor_rx_task_handle)
     {
         ESP_LOGE(TAG, "Failed to create Processor task");
         return;
     }
     ESP_LOGI(TAG, "Processor task created successfully");
+
+    BaseType_t processor_tx_task_handle = xTaskCreate(processor_tx_task, "processor_tx", 4096, NULL, 8, NULL);
+    if (!processor_tx_task_handle)
+    {
+        ESP_LOGE(TAG, "Failed to create Processor TX task");
+        return;
+    }
+    ESP_LOGI(TAG, "Processor TX task created successfully");
 }

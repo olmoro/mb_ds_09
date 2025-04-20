@@ -16,7 +16,7 @@
  *               Green       - пакет отправлен в очередь на обработку;
  */
 
-#include "slave.h"
+#include "slave_rx.h"
 #include "board.h"
 #include "processor.h"
 #include "project_config.h"
@@ -30,11 +30,9 @@
 #include "freertos/queue.h"
 #include "driver/uart.h"
 
-static const char *TAG = "MODBUS_SLAVE";
+static const char *TAG = "SLAVE_RX";
 
 QueueHandle_t modbus_queue;
-//QueueHandle_t processor_queue;
-//extern QueueHandle_t processor_queue;
 
 
 static SemaphoreHandle_t uart_mutex = NULL;
@@ -48,7 +46,7 @@ uint8_t comm = 0x00;    // команда (функция)
 
 
 /* Задача приёма пакета по Modbus, его проверка и отправка в очередь для стаффинга */
-void modbus_receive_task(void *arg)
+void slave_rx_task(void *arg)
 {
     // Создание очереди и мьютекса
     modbus_queue = xQueueCreate(MB_QUEUE_SIZE, sizeof(pdu_packet_t));
@@ -68,7 +66,7 @@ void modbus_receive_task(void *arg)
     {
         uint8_t temp_buf[128];  // уточнить
         uint8_t mb_err = 0x00;  // Ошибок приёма пакета по modbus нет
-        uint8_t bytes = 0x00;   // количество байт в содержательной части пакета (сообщение об ошибке)
+        uint16_t bytes = 0x00;   // количество байт в содержательной части пакета (сообщение об ошибке)
 
         int len = uart_read_bytes(MB_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(100));
 
@@ -88,12 +86,21 @@ void modbus_receive_task(void *arg)
                 free(frame_buffer);
                 frame_buffer = NULL;
                 frame_length = 0;
-                mb_err = 0x04; // continue;
+                continue;       // mb_err = 0x04; // continue;
             }
+
+            ESP_LOGI(TAG, "len (%d bytes):", len);
 
             memcpy(frame_buffer + frame_length, temp_buf, len);
             frame_length += len;
             last_rx_time = xTaskGetTickCount();
+
+            ESP_LOGI(TAG, "frame_buffer (%d bytes):", frame_length);
+            for (int i = 0; i < frame_length; i++)
+            {
+                printf("%02X ", frame_buffer[i]);
+            }
+            printf("\n");
         }
 
         // Проверка завершения фрейма
@@ -106,7 +113,7 @@ void modbus_receive_task(void *arg)
                 free(frame_buffer);
                 frame_buffer = NULL;
                 frame_length = 0;
-                mb_err = 0x04;
+                continue;       // mb_err = 0x04;
             }
 
             // Проверка адреса
@@ -116,7 +123,7 @@ void modbus_receive_task(void *arg)
                 free(frame_buffer);
                 frame_buffer = NULL;
                 frame_length = 0;
-                mb_err = 0x04;
+                continue;       // mb_err = 0x04;
             }
 
             // Проверка CRC
@@ -129,14 +136,15 @@ void modbus_receive_task(void *arg)
                 free(frame_buffer);
                 frame_buffer = NULL;
                 frame_length = 0;
-                mb_err = 0x04;
+                continue;       // mb_err = 0x04;
             }
+
+            ESP_LOGI(TAG,"CRC OK");
 
             // Подготовка PDU пакета
             pdu_packet_t pdu =
                 {
                     .data = malloc(frame_length - 2),
-
                     .length = frame_length - 2, // Исключаем CRC
                 };
 
@@ -146,7 +154,7 @@ void modbus_receive_task(void *arg)
                 free(frame_buffer);
                 frame_buffer = NULL;
                 frame_length = 0;
-                mb_err = 0x04;
+                continue;       // mb_err = 0x04;
             }
 
             switch (frame_buffer[1])
@@ -168,8 +176,16 @@ void modbus_receive_task(void *arg)
                 break;
             }
 
+
             memcpy(pdu.data, frame_buffer, pdu.length);
             pdu.length = bytes;                         // Это из-за терминала (он оперирует 16-битовым типом)
+
+            ESP_LOGI(TAG, "pdu.length %d bytes:", pdu.length);      // OK
+            for(int i = 0; i < pdu.length; i++ )
+            {
+                printf("%02X ", pdu.data[i]);
+            }
+            printf("\n");
 
             if (mb_err == 0x00)
             {
@@ -181,40 +197,43 @@ void modbus_receive_task(void *arg)
                     free(pdu.data);
                     continue;
                 }
+                
             }
-            else
-            {
-                /* Если mb_err == true, то пакет принят с ошибкой, либо очередь на обработку пакета
-                    переполнена. Формируется ответ c установленным старшим битом в коде команды */
-                uint8_t response[5] =
-                    {
-                        addr,                   // Адрес
-                        comm |= 0x80,           // Функция
-                        pdu.data[2] = mb_err,   // Код ошибки
-                        0x00, 0x00              // Место для CRC
-                    };
-                uint8_t len = sizeof(response);
 
-                /* Расчет CRC для ответа */
-                uint16_t response_crc = mb_crc16(response, len - 2);
-                response[3] = response_crc & 0xFF;
-                response[4] = response_crc >> 8;
 
-                ESP_LOGI(TAG, "Response (%d bytes):", len);
-                for (int i = 0; i < len; i++)
-                {
-                    printf("%02X ", response[i]);
-                }
-                printf("\n");
+        //     // else
+        //     // {
+        //         /* Если mb_err == true, то пакет принят с ошибкой, либо очередь на обработку пакета
+        //             переполнена. Формируется ответ c установленным старшим битом в коде команды */
+        //         uint8_t response[5] =
+        //             {
+        //                 addr,                   // Адрес
+        //                 comm |= 0x80,           // Функция
+        //                 pdu.data[2] = mb_err,   // Код ошибки
+        //                 0x00, 0x00              // Место для CRC
+        //             };
+        //         uint8_t len = sizeof(response);
 
-                /* Отправка ответа с синхронизацией */
-                xSemaphoreTake(uart_mutex, portMAX_DELAY);
-                uart_write_bytes(MB_PORT_NUM, (const char *)response, sizeof(response));
-                xSemaphoreGive(uart_mutex);
+        //         /* Расчет CRC для ответа */
+        //         uint16_t response_crc = mb_crc16(response, len - 2);
+        //         response[3] = response_crc & 0xFF;
+        //         response[4] = response_crc >> 8;
 
-                ledsBlue();     // Ожидание ввода нового пакета
-                free(pdu.data); // Освобождение памяти после обработки сообщения
-            }
+        //         ESP_LOGI(TAG, "Response (%d bytes):", len);
+        //         for (int i = 0; i < len; i++)
+        //         {
+        //             printf("%02X ", response[i]);
+        //         }
+        //         printf("\n");
+
+        //         /* Отправка ответа с синхронизацией */
+        //         xSemaphoreTake(uart_mutex, portMAX_DELAY);
+        //         uart_write_bytes(MB_PORT_NUM, (const char *)response, sizeof(response));
+        //         xSemaphoreGive(uart_mutex);
+
+        //         ledsBlue();     // Ожидание ввода нового пакета
+        //         free(pdu.data); // Освобождение памяти после обработки сообщения
+        // //    }
 
             free(frame_buffer);
             frame_buffer = NULL;
@@ -223,79 +242,3 @@ void modbus_receive_task(void *arg)
     }
 }
 
-
-
-// // Задача отправления ответа
-// void mb_send_task(void *arg)
-// {
-//     //msg_packet_t msg;
-//     processor_queue = xQueueCreate(MB_QUEUE_SIZE, sizeof(pdu_packet_t));
-
-//     while (1)
-//     {
-//         msg_packet_t msg;
-
-
-//         // mb_frame_t frame;   // структура
-//         // #ifdef TEST_MODBUS
-//         //     if(xQueueReceive(modbus_queue, &msg, portMAX_DELAY)) // Test
-//         // #else
-//         if (xQueueReceive(processor_queue, &msg, portMAX_DELAY))        // Пока будет так
-//         // #endif
-//         {
-//             // Обработка данных
-//             ESP_LOGI(TAG, "Received deStuffing msd (%d bytes):", msg.length);
-
-//             printf("%08X ", *msg.data);
-//             printf("\n");
-
-
-//             for (int i = 0; i < msg.length; i++)
-//             {
-//                 printf("%02X ", msg.data[i]);
-//             }
-//             printf("\n");
-
-//             // ledsGreen();
-//             // ledsOn();
-
-//             // // Проверка минимальной длины фрейма
-//             // if(msg.length < 4) {
-//             //     ESP_LOGE(TAG, "Invalid msg length: %d", msg.length);
-//             //     free(msg.data);
-//             //     continue;
-//             // }
-
-//             // Формирование ответа
-
-//             uint8_t response[msg.length + 2];
-//             response[0] = addr; //      , msg.data, msg.length);
-//             response[1] = comm; //      , msg.data, msg.length);
-
-
-//             memcpy(response + 2, msg.data, msg.length);
-
-//             // Расчет CRC для ответа
-//             uint16_t response_crc = mb_crc16(response, msg.length);
-//             response[msg.length] = response_crc & 0xFF;
-//             response[msg.length + 1] = response_crc >> 8;
-
-
-//             ESP_LOGI(TAG, "Response msg (%d bytes):", msg.length + 2);
-//             for (int i = 0; i < msg.length + 2; i++)
-//             {
-//                 printf("%02X ", response[i]);
-//             }
-//             printf("\n");
-
-//             // Отправка ответа с синхронизацией
-//             xSemaphoreTake(uart_mutex, portMAX_DELAY);
-//             uart_write_bytes(MB_PORT_NUM, (const char *)response, sizeof(response));
-//             xSemaphoreGive(uart_mutex);
-
-//             ledsBlue(); // Ожидание ввода нового пакета
-
-//             //free(msg.data);
-//         }
-//     }
-// }

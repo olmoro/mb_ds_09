@@ -517,3 +517,60 @@ void app_main() {
 - Обрабатывает все возможные краевые случаи
 - Имеет защиту от переполнения буфера
 - Возвращает подробные коды ошибок
+
+
+/* ============================================================================================== */
+
+В байтовом буфере имеется сообщение известной длины, из которого надо удалить все встретившиеся байты с кодом 0x10, за которыми непосредственно следует любой из 0x01, 0x02, 0x03 или 0x1F. Размер исходного сообщения может быть от 4 до 500 байт. Код для ESP-IDF v5.4 должен содержать необходимые проверки.
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "esp_err.h"
+
+esp_err_t remove_special_bytes(uint8_t *buffer, size_t *length) {
+    // Проверка валидности входных аргументов
+    if (buffer == NULL || length == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    size_t initial_len = *length;
+    if (initial_len < 4 || initial_len > 500) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    size_t read_idx = 0;
+    size_t write_idx = 0;
+
+    while (read_idx < initial_len) {
+        // Проверяем текущий и следующий байт, если есть
+        if (buffer[read_idx] == 0x10 && (read_idx + 1 < initial_len)) {
+            uint8_t next_byte = buffer[read_idx + 1];
+            
+            // Проверяем следующий байт на совпадение с целевыми значениями
+            bool should_remove = (next_byte == 0x01 || next_byte == 0x02 ||
+                                 next_byte == 0x03 || next_byte == 0x1F);
+            
+            if (should_remove) {
+                // Пропускаем запись текущего байта (0x10)
+                read_idx++; // Переходим к следующему байту после 0x10
+                continue;
+            }
+        }
+        
+        // Копируем текущий байт в новую позицию
+        buffer[write_idx] = buffer[read_idx];
+        write_idx++;
+        read_idx++;
+    }
+
+    // Обновляем результирующую длину буфера
+    *length = write_idx;
+
+    return ESP_OK;
+}
+
+
+uint8_t data[] = {0x10, 0x01, 0xAA, 0x10, 0x1F};
+size_t length = sizeof(data);
+
+esp_err_t res = remove_special_bytes(data, &length);
+// Результат: data = {0x01, 0xAA, 0x1F}, length = 3

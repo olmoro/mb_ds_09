@@ -85,91 +85,91 @@ bool staffProcess(const uint8_t *src, uint8_t *dest, size_t src_len, size_t dest
     return true;
 }
 
-esp_err_t deStaffProcess(const uint8_t *src, uint8_t *dest, size_t src_size, size_t dest_size, size_t *dest_len) 
-{
-    // Проверка входных параметров
-    // if (src == NULL || dest == NULL || dest_len == NULL) 
-    // {
-    //     return ESP_ERR_INVALID_ARG;
-    // }
-    // if (src_size != BUF_SIZE || dest_size != BUF_SIZE) 
-    // {
-    //     return ESP_ERR_INVALID_SIZE;
-    // }
+// esp_err_t deStaffProcess(const uint8_t *src, uint8_t *dest, size_t src_size, size_t dest_size, size_t *dest_len) 
+// {
+//     // Проверка входных параметров
+//     if (src == NULL || dest == NULL || dest_len == NULL) 
+//     {
+//         return ESP_ERR_INVALID_ARG;
+//     }
+//     if (src_size != BUF_SIZE || dest_size != BUF_SIZE) 
+//     {
+//         return ESP_ERR_INVALID_SIZE;
+//     }
 
-    size_t i = 0;
-    size_t j = 0;
+//     size_t i = 0;
+//     size_t j = 0;
 
-    while (i < src_size) 
-    {
-        // Проверяем текущий байт на  DLE и наличие следующего байта
-        if (src[i] == DLE && (i + 1) < src_size) 
-        {
-            uint8_t next_byte = src[i + 1];
+//     while (i < src_size) 
+//     {
+//         // Проверяем текущий байт на  DLE и наличие следующего байта
+//         if (src[i] == DLE && (i + 1) < src_size) 
+//         {
+//             uint8_t next_byte = src[i + 1];
             
-            // Проверяем следующий байт на совпадение с целевыми значениями
-            if (next_byte == SOH || next_byte == STX || next_byte == ETX || next_byte == ISI) 
-            {
-                // // Пропускаем  DLE, копируем следующий байт
-                // if (j >= dest_size) 
-                // {
-                //     *dest_len = j;
-                //     return ESP_ERR_INVALID_SIZE;
-                // }
-                dest[j++] = next_byte;
-                i += 2;
-            } 
-            else 
-            {
-                // Сохраняем текущий байт DLE
-                if (j >= dest_size) 
-                {
-                    *dest_len = j;
-                    return ESP_ERR_INVALID_SIZE;
-                }
-                dest[j++] = src[i++];
-            }
-        } 
-        else 
-        {
-            // Копируем текущий байт
-            if (j >= dest_size) 
-            {
-                *dest_len = j;
-                return ESP_ERR_INVALID_SIZE;
-            }
-            dest[j++] = src[i++];
-        }
-    }
+//             // Проверяем следующий байт на совпадение с целевыми значениями
+//             if (next_byte == SOH || next_byte == STX || next_byte == ETX || next_byte == ISI) 
+//             {
+//                 // Пропускаем  DLE, копируем следующий байт
+//                 if (j >= dest_size) 
+//                 {
+//                     *dest_len = j;
+//                     return ESP_ERR_INVALID_SIZE;
+//                 }
+//                 dest[j++] = next_byte;
+//                 i += 2;
+//             } 
+//             else 
+//             {
+//                 // Сохраняем текущий байт DLE
+//                 if (j >= dest_size) 
+//                 {
+//                     *dest_len = j;
+//                     return ESP_ERR_INVALID_SIZE;
+//                 }
+//                 dest[j++] = src[i++];
+//             }
+//         } 
+//         else 
+//         {
+//             // Копируем текущий байт
+//             if (j >= dest_size) 
+//             {
+//                 *dest_len = j;
+//                 return ESP_ERR_INVALID_SIZE;
+//             }
+//             dest[j++] = src[i++];
+//         }
+//     }
 
-    *dest_len = j;
-    return ESP_OK;
-}
-
-
+//     *dest_len = j;
+//     return ESP_OK;
+// }
 
 
 
-/* Пример использования
-void app()
-{
-    uint8_t src[] = {0x00, 0x01, 0x02, 0x01};
-    size_t src_len = sizeof(src);
-    uint8_t dest[10]; // Буфер с запасом
-    size_t dest_len;
 
-    if (staffProcess(src, dest, src_len, sizeof(dest), &dest_len)) {
-        // Успешная обработка
-        ESP_LOGI("TAG", "Processed data length: %d", dest_len);
 
-        // Далее можно использовать данные в dest
-    }
-    else
-    {
-        ESP_LOGE("TAG", "Destination buffer overflow!");
-    }
-}
-*/
+// /* Пример использования
+// void app()
+// {
+//     uint8_t src[] = {0x00, 0x01, 0x02, 0x01};
+//     size_t src_len = sizeof(src);
+//     uint8_t dest[10]; // Буфер с запасом
+//     size_t dest_len;
+
+//     if (staffProcess(src, dest, src_len, sizeof(dest), &dest_len)) {
+//         // Успешная обработка
+//         ESP_LOGI("TAG", "Processed data length: %d", dest_len);
+
+//         // Далее можно использовать данные в dest
+//     }
+//     else
+//     {
+//         ESP_LOGE("TAG", "Destination buffer overflow!");
+//     }
+// }
+// */
 
 // ================================== deStuff ==================================
 
@@ -258,3 +258,69 @@ void app()
 //     }
 // }
 
+/* =========================== Вариант со сдвигами в одном буфере =========================== */
+
+/* В байтовом буфере имеется сообщение известной длины, из которого надо удалить все 
+    встретившиеся байты с кодом 0x10, за которыми непосредственно следует любой из 
+    0x01, 0x02, 0x03 или 0x1F. Размер исходного сообщения может быть от 4 до 500 байт. 
+    Код для ESP-IDF v5.4 должен содержать необходимые проверки.
+    DLE 0x10 // символ-префикс
+    SOH 0x01 // начало заголовка
+    ISI 0x1F // указатель кода функции FNC
+    STX 0x02 // начало тела сообщения
+    ETX 0x03 // конец тела сообщения
+*/
+
+esp_err_t deStaff(uint8_t *buffer, size_t *length) 
+{
+    // Проверка валидности входных аргументов
+    if (buffer == NULL || length == NULL) 
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    size_t initial_len = *length;
+    if (initial_len < 4 || initial_len > 500) 
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    size_t read_idx = 0;
+    size_t write_idx = 0;
+
+    while (read_idx < initial_len) 
+    {
+        // Проверяем текущий и следующий байт, если есть
+        if (buffer[read_idx] == DLE && (read_idx + 1 < initial_len)) 
+        {
+            uint8_t next_byte = buffer[read_idx + 1];
+            
+            // Проверяем следующий байт на совпадение с целевыми значениями
+            bool should_remove = (next_byte == SOH || next_byte == STX ||
+                                 next_byte == ETX || next_byte == ISI);
+            
+            if (should_remove) 
+            {
+                // Пропускаем запись текущего байта (DLE)
+                read_idx++; // Переходим к следующему байту после DLE
+                continue;
+            }
+        }
+        
+        // Копируем текущий байт в новую позицию
+        buffer[write_idx] = buffer[read_idx];
+        write_idx++;
+        read_idx++;
+    }
+
+    // Обновляем результирующую длину буфера
+    *length = write_idx;
+
+    return ESP_OK;
+}
+
+// Пример использования:
+// // uint8_t data[] = {0x10, 0x01, 0xAA, 0x10, 0x1F};
+// size_t length = sizeof(data);
+
+// esp_err_t res = deStaff(data, &length);
+// // Результат: data = {0x01, 0xAA, 0x1F}, length = 3

@@ -7,16 +7,12 @@
 #ifndef _PROCESSOR_H_
 #define _PROCESSOR_H_
 
-
-
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-
-void frame_processor_task(void *arg);
-
+    void processor_rx_task(void *arg);
 
 #ifdef __cplusplus
 }

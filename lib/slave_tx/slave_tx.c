@@ -32,7 +32,7 @@
 
  static const char *TAG = "SLAVE_TX";
 
- QueueHandle_t processor_queue;
+extern QueueHandle_t processor_queue;
 
  static SemaphoreHandle_t uart_mutex = NULL;
 
@@ -44,30 +44,29 @@ extern uint8_t comm;    // команда (функция)
 //uint8_t bytes = 0x00;   // количество байт в содержательной части пакета
 
 // Задача отправления ответа
-void mb_send_task(void *arg)
+void slave_tx_task(void *arg)
 {
-    //msg_packet_t msg;
+    // msg_packet_t msg;
 
-        // Создание очереди и мьютекса
-        processor_queue = xQueueCreate(MB_QUEUE_SIZE, sizeof(pdu_packet_t));
+    // // Создание очереди и мьютекса
+    // processor_queue = xQueueCreate(MB_QUEUE_SIZE, sizeof(pdu_packet_t));
 
-        uart_mutex = xSemaphoreCreateMutex();
-        if (!uart_mutex)
-        {
-            ESP_LOGE(TAG, "Mutex creation failed");
-            return;
-        }
+    uart_mutex = xSemaphoreCreateMutex();
+    if (!uart_mutex)
+    {
+        ESP_LOGE(TAG, "Mutex creation failed");
+        return;
+    }
 
     while (1)
     {
         msg_packet_t msg;
 
-
         // mb_frame_t frame;   // структура
         // #ifdef TEST_MODBUS
         //     if(xQueueReceive(modbus_queue, &msg, portMAX_DELAY)) // Test
         // #else
-        if (xQueueReceive(processor_queue, &msg, portMAX_DELAY))        // Пока будет так
+        if (xQueueReceive(processor_queue, &msg, portMAX_DELAY)) // Пока будет так
         // #endif
         {
             // Обработка данных
@@ -75,7 +74,6 @@ void mb_send_task(void *arg)
 
             printf("%08X ", *msg.data);
             printf("\n");
-
 
             for (int i = 0; i < msg.length; i++)
             {
@@ -99,14 +97,12 @@ void mb_send_task(void *arg)
             response[0] = addr; //      , msg.data, msg.length);
             response[1] = comm; //      , msg.data, msg.length);
 
-
             memcpy(response + 2, msg.data, msg.length);
 
             // Расчет CRC для ответа
             uint16_t response_crc = mb_crc16(response, msg.length);
             response[msg.length] = response_crc & 0xFF;
             response[msg.length + 1] = response_crc >> 8;
-
 
             ESP_LOGI(TAG, "Response msg (%d bytes):", msg.length + 2);
             for (int i = 0; i < msg.length + 2; i++)
@@ -122,7 +118,7 @@ void mb_send_task(void *arg)
 
             ledsBlue(); // Ожидание ввода нового пакета
 
-            //free(msg.data);
+            // free(msg.data);
         }
     }
 }

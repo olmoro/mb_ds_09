@@ -27,7 +27,7 @@
 */
 
 
-#include "processor.h"
+#include "processor_tx.h"
 #include "board.h"
 #include "staff.h"
 #include "project_config.h"
@@ -41,30 +41,24 @@
 #include "freertos/queue.h"
 #include "driver/uart.h"
 
-// Структура для передачи фреймов между задачами
-typedef struct
-{
-    uint8_t *data;
-    size_t length;
-} mb_frame_t;
-
-/* Обмен может выполняться на скоростях (бит/с.): */
-uint32_t bauds[10] = {300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200};
+// // Структура для передачи фреймов между задачами
+// typedef struct
+// {
+//     uint8_t *data;
+//     size_t length;
+// } mb_frame_t;
 
 /* Пример сообщения:
    Заголовок:       DLE SOH DAD SAD DLE ISI FNC DataDLEHead 
    Тело сообщения:  DLE STX DataDLESet DLE ETX CRC1 CRC2
 */
-static const char *TAG = "PROCESSOR";
+static const char *TAG = "PROC_RX";
 
 extern QueueHandle_t modbus_queue;
-extern QueueHandle_t processor_queue;
-
-
 
 
 // Задача обработки полученного по модбасу фрейма (без MB_CRC)
-void frame_processor_task(void *arg) 
+void processor_rx_task(void *arg) 
 {
     //pdu_packet_t pdu;
 
@@ -112,7 +106,7 @@ void frame_processor_task(void *arg)
             uint8_t response[dest_len + 2];     // +2 байта для контрольной суммы
             memcpy(response, dest, dest_len);
 
-            // Расчет CRC для ответа (функия откорректирована в части типов данных)
+            // Расчет CRC для ответа (функция откорректирована в части типов данных)
             uint16_t response_crc = CRCode(response + 2, dest_len - 2);
             response[dest_len + 1] = response_crc & 0xFF;
             response[dest_len] = response_crc >> 8;
@@ -130,135 +124,7 @@ void frame_processor_task(void *arg)
             // Отправка ответа //с синхронизацией
             //    xSemaphoreTake(uart_mutex, portMAX_DELAY);
             uart_write_bytes(SP_PORT_NUM, (const char *)response, sizeof(response));
-            //    xSemaphoreGive(uart_mutex);
-
-// ===========================================================================================
-            // Далее будет приём пакета от целевого прибора
-        //    uint8_t temp_buf[128];
-            uint8_t mb_err = 0x00; // Ошибок приёма пакета по sp нет
-    
-            int len = uart_read_bytes(SP_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(100));
-
-            // Проверка CRC
-            uint16_t received_crc = (temp_buf[len - 2] << 8) | temp_buf[len - 1];
-            uint16_t calculated_crc = CRCode(temp_buf + 4, len - 6);              // Исключая FF FF 10 01 в начале и два байта CRC
-            if (received_crc != calculated_crc)
-            {
-                ESP_LOGE(TAG, "len: %02X CRC error: %04X vs %04X", len, received_crc, calculated_crc);
-
-                sp_err = 0x04;
-            }
-            else
-            {
-                ESP_LOGI(TAG, "CRC OK: %04X vs %04X", received_crc, calculated_crc);
-
-
-
-                // сюда перенести 
-
-            }
-
-
-            // uint8_t dest[BUF_SIZE];
-            // size_t dest_len;
-
-    // @@@  esp_err_t deStaffProcess(const uint8_t *src, uint8_t *dest, size_t src_size, size_t dest_size, size_t *dest_len); 
-
-            esp_err_t ret = deStaffProcess(temp_buf + 2, dest, len - 4, sizeof(dest), &dest_len);
-            if (ret == ESP_OK)
-            {
-                ESP_LOGI(TAG, "deStaff Processed %d bytes", dest_len);
-                for (int i = 0; i < dest_len; i++)
-                    printf("%02X ", dest[i]);
-                printf("\n");
-    /* OK */
-                // подготовка пакета для отправки в очередь
-                // Подготовка PDU пакета
-
-
-                msg_packet_t msg =
-                {
-                    .data = malloc(dest_len),       // + 2)
-                    .length = dest_len,             // + 2,                      // Без CRC и + 2 байта на количество байт 
-                };
-
-                // msg.data[0] = dest_len >> 8;
-                // msg.data[1] = dest_len & 0xFF;
-                // memcpy(msg.data + 2, dest, msg.length);
-                memcpy(msg.data, dest, sizeof(dest));      //          msg.length);
-
-                ESP_LOGI(TAG, "deStaff msg %d bytes", dest_len);
-                for (int i = 0; i < dest_len; i++)                //
-                    printf("%02X ", msg.data[i]);
-                printf("\n");
-
-    /* OK */
-
-
-
-                // Отправка в очередь
-                // if(xQueueSend(queues->modbus_queue, &msg, 0) != pdTRUE)      // if(xQueueSend(queues->modbus_queue, &msg, pdMS_TO_TICKS(100)) != pdPASS) {
-
-                if (xQueueSend(processor_queue, &msg, 0) != pdTRUE)
-                {
-                    ESP_LOGE(TAG, "Queue full! Dropping PDU");
-                    free(msg.data);
-                    continue;
-                }
-
-
-                free(msg.data);
-
-            }
-            else
-            {
-                ESP_LOGE(TAG, "deStaff Error: %s", esp_err_to_name(ret));
-            }
-
-            // dest
-            // dest_len
-
- 
-
-
-
-
-
-
-            // memcpy(msg.data, temp_buf+2, len-2)
-            // msg->l .lenght = len-2;
-
-            // // Подготовка PDU пакета
-            // msg_packet_t msg =
-            //     {
-            //         .length = len - 2, // Исключаем FF FF
-            //         .data = malloc(temp_buf + 2)
-            //     };
-
-
-            // // #ifdef TEST_MODBUS
-            //     // Отправка в очередь
-            //     // if(xQueueSend(processor_queue, &msg, pdMS_TO_TICKS(100)) != pdPASS) 
-            //     // {
-
-            //         ledsOn();
-
-            //     if (xQueueSend(processor_queue, &msg, 0) != pdTRUE)
-            //     {
-            // //     //     // if(xQueueSend(queues->modbus_queue, &msg, 0) != pdTRUE) {     //if(xQueueSend(queues->modbus_queue, &msg, pdMS_TO_TICKS(100)) != pdPASS) {
-            //         ESP_LOGE(TAG, "Queue full! Dropping PDU");
-            //         //free(msg.data);
-            //         continue;
-            //      }
-            // // #endif
-
-
-            // далее staffing с выбором параметров обмена с целевым прибором
-            // отправка фрейма по uart2
-            // приём ответа, дестаффинг
-            // отправка в очередь to_modbus_queue
-
-//    ledsGreen();        
+            //    xSemaphoreGive(uart_mutex);  
 
         }
         //free(msg.data); // Освобождение памяти

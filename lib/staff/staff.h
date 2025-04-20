@@ -20,22 +20,36 @@ extern "C"
 {
 #endif
 
-/**
- * @brief Побайтное копирование со стаффингом.
- *
- * @param src: исходный буфер.
- * @param dest: целевой буфер.
- * @param src_len: длина исходного буфера.
- * @param dest_max_len: максимально допустимая длина целевого буфера.
- * @param dest_actual_len: указатель для возврата фактической длины данных после обработки
- *
- * @return
- *        true: данные успешно обработаны и записаны.
- *        false: недостаточно места в целевом буфере.
- */
+/*
+ * @return - ESP_OK при успешном выполнении
+ *           ESP_ERR_INVALID_ARG при невалидных аргументах
+ *           ESP_ERR_INVALID_SIZE при несоответствии размеров буферов
+ * */
+
+
+/* Ключевые особенности:
+Проверка аргументов:
+Проверяет указатели на буфер и длину на NULL
+Убеждается, что исходная длина в диапазоне 4-500 байт
+
+Алгоритм обработки:
+Использует два указателя (чтение и запись) для обработки за один проход
+Пропускает байты 0x10, за которыми сразу следует целевой байт
+Сохраняет все остальные байты
+
+Эффективность:
+Работает за минимум времени
+Не использует дополнительную память
+Модифицирует буфер на месте
+
+Корректная обработка граничных случаев:
+Автоматически обрабатывает конец буфера
+Корректно работает с последовательными удалениями
+*/
+
 bool staffProcess(const uint8_t *src, uint8_t *dest, size_t src_len, size_t dest_max_len, size_t *dest_actual_len);
-//bool deStaffProcess(const uint8_t *src, uint8_t *dest, size_t src_len, size_t dest_max_len, size_t *dest_actual_len);
-esp_err_t deStaffProcess(const uint8_t *src, uint8_t *dest, size_t src_size, size_t dest_size, size_t *dest_len); 
+
+esp_err_t deStaff(uint8_t *buffer, size_t *length); 
 
 #ifdef __cplusplus
 }
